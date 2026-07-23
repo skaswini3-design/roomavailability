@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jawan Bhavan – Room Availability</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #f0f4f8;
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+.site-header {
+  background: linear-gradient(135deg, #1e3a8a, #1e5aa8);
+  color: #fff;
+  padding: 16px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  box-shadow: 0 3px 12px rgba(0,0,0,.3);
+}
+.site-header h1 { font-size: 20px; font-weight: 700; }
+.site-header p  { font-size: 12px; opacity: .8; margin-top: 3px; }
+
+.upload-info {
+  background: rgba(255,255,255,.15);
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 12px;
+  text-align: right;
+  line-height: 1.6;
+}
+.upload-info strong { font-size: 13px; display: block; }
+
+/* ── CONTAINER ── */
+.wrap { max-width: 1400px; margin: 0 auto; padding: 24px 20px 50px; }
+
+/* ── UPLOAD ZONE ── */
+.upload-zone {
+  background: #fff;
+  border: 2px dashed #93c5fd;
+  border-radius: 14px;
+  padding: 26px 20px;
+  text-align: center;
+  margin-bottom: 22px;
+  cursor: pointer;
+  position: relative;
+  transition: border-color .2s, background .2s;
+}
+.upload-zone:hover { border-color: #2563eb; background: #eff6ff; }
+.upload-zone input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.upload-zone .icon { font-size: 40px; display: block; margin-bottom: 8px; }
+.upload-zone p     { font-size: 14px; color: #374151; font-weight: 600; }
+.upload-zone small { font-size: 12px; color: #6b7280; display: block; margin-top: 4px; }
+
+.parse-warning {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 12.5px;
+  margin-bottom: 18px;
+  display: none;
+  line-height: 1.6;
+}
+.parse-warning strong { display:block; margin-bottom: 3px; }
+
+/* ── SUMMARY CARDS ── */
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.stat-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px 18px;
+  border-left: 5px solid;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+}
+.stat-card .lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #6b7280; letter-spacing: .5px; }
+.stat-card .val { font-size: 30px; font-weight: 800; margin-top: 4px; }
+.sc-total    { border-color: #3b82f6; } .sc-total .val    { color: #1d4ed8; }
+.sc-occupied { border-color: #ef4444; } .sc-occupied .val { color: #b91c1c; }
+.sc-free     { border-color: #22c55e; } .sc-free .val     { color: #15803d; }
+.sc-partial  { border-color: #f59e0b; } .sc-partial .val  { color: #b45309; }
+
+/* ── ROOM CONFIG ── */
+.room-config {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+}
+.room-config label { font-size: 13px; font-weight: 700; color: #374151; display:block; margin-bottom: 6px; }
+.room-config .row { display:flex; gap: 10px; flex-wrap: wrap; align-items:center; }
+.room-config input[type="text"] {
+  flex: 1;
+  min-width: 220px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 13px;
+  outline: none;
+}
+.room-config input[type="text"]:focus { border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }
+.room-config small { color:#6b7280; display:block; margin-top:6px; font-size: 11.5px; }
+
+/* ── CONTROLS ── */
+.controls {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+}
+.controls label { font-size: 13px; font-weight: 700; color: #374151; }
+
+.controls select,
+.controls input[type="date"] {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 13px;
+  outline: none;
+}
+.controls select:focus,
+.controls input[type="date"]:focus { border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }
+input:disabled { background: #f3f4f6; opacity: .6; cursor: not-allowed; }
+
+.btn {
+  padding: 9px 18px;
+  border-radius: 8px;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn:hover { opacity: .85; }
+.btn-blue  { background: #2563eb; color: #fff; }
+.btn-gray  { background: #6b7280; color: #fff; }
+.btn-teal  { background: #0d9488; color: #fff; }
+
+/* ── LEGEND ── */
+.legend {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 18px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #374151;
+}
+.leg-dot {
+  width: 13px; height: 13px;
+  border-radius: 3px;
+  display: inline-block;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.ld-occ { background: #fca5a5; }
+.ld-par { background: #fcd34d; }
+.ld-fre { background: #86efac; }
+
+/* ── CALENDAR GRID ── */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(265px, 1fr));
+  gap: 16px;
+}
+
+/* ── DAY CARD ── */
+.day-card { background: #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.09); }
+
+.card-head {
+  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  color: #fff;
+  padding: 11px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.day-card.is-today .card-head { background: linear-gradient(135deg, #0d9488, #0f766e); }
+
+.card-head .date-big   { font-size: 14px; font-weight: 700; }
+.card-head .date-small { font-size: 11px; opacity: .8; margin-top: 2px; }
+
+.card-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+
+/* ── ROOM ROW ── */
+.room-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-size: 12.5px;
+}
+.room-tag  { font-weight: 800; font-size: 13px; min-width: 40px; flex-shrink: 0; }
+.room-info { flex: 1; line-height: 1.45; }
+.room-info .gname { font-weight: 700; }
+.room-info .gmeta { font-size: 11px; opacity: .72; }
+
+.r-occ { background: #fee2e2; color: #7f1d1d; }
+.r-par { background: #fef3c7; color: #78350f; }
+.r-fre { background: #dcfce7; color: #14532d; }
+
+/* ── EMPTY / NO DATA ── */
+.no-data {
+  grid-column: 1/-1;
+  text-align: center;
+  padding: 70px 20px;
+  color: #9ca3af;
+}
+.no-data .icon { font-size: 52px; display: block; margin-bottom: 14px; }
+.no-data p { font-size: 15px; }
+
+@media (max-width: 600px) {
+  .site-header { flex-direction: column; text-align: center; }
+  .controls    { flex-direction: column; align-items: stretch; }
+  .upload-info { text-align: center; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="site-header">
+  <div>
+    <h1>🏨 Jawan Bhavan — Room Availability</h1>
+    <p>Department of Sainik Welfare, Puducherry</p>
+  </div>
+  <div class="upload-info" id="uploadInfo">
+    <strong>No file loaded</strong>
+    Excel (.xlsx/.xls) or CSV — upload to begin
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- UPLOAD ZONE -->
+  <div class="upload-zone">
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm,.csv" onchange="processFile(this)">
+    <span class="icon">📂</span>
+    <p>Click to upload Booking File — Excel (.xlsx / .xls) or CSV (.csv)</p>
+    <small>Reads "Name", "Rank Category" / "Service", "Check-In", "Check-Out" (or "Checkout") and the actual room(s) from "Actual Room Allotment" (plain text, the "N~ROOMCODE" export format, or a JSON blob listing multiple rooms)</small>
+  </div>
+
+  <div class="parse-warning" id="parseWarning"></div>
+
+  <!-- SUMMARY -->
+  <div class="summary-row" id="summaryRow" style="display:none">
+    <div class="stat-card sc-total">
+      <div class="lbl">Total Rooms</div>
+      <div class="val" id="sTotal">0</div>
+    </div>
+    <div class="stat-card sc-occupied">
+      <div class="lbl">Occupied Today</div>
+      <div class="val" id="sOccupied">0</div>
+    </div>
+    <div class="stat-card sc-free">
+      <div class="lbl">Available Today</div>
+      <div class="val" id="sFree">0</div>
+    </div>
+    <div class="stat-card sc-partial">
+      <div class="lbl">Checkout Today</div>
+      <div class="val" id="sPartial">0</div>
+    </div>
+  </div>
+
+  <!-- ROOM LIST CONFIG -->
+  <div class="room-config" id="roomConfig" style="display:none">
+    <label>Room codes (comma-separated) — edit to add rooms that exist but have no booking yet:</label>
+    <div class="row">
+      <input type="text" id="roomCodesInput" value="SU1, SU2, FR21, FR22, FR23, FR24" placeholder="e.g. SU1, SU2, FR21, FR22, FR23, FR24">
+      <button class="btn btn-blue" onclick="applyRoomCodes()">Update Rooms</button>
+    </div>
+    <small id="roomDetectNote"></small>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <label>View:</label>
+    <select id="filterType" onchange="onTypeChange()">
+      <option value="today">Today</option>
+      <option value="single">Single Date</option>
+      <option value="between">Between Dates</option>
+      
+    </select>
+    <input type="date" id="startDate" disabled>
+    <input type="date" id="endDate"   disabled>
+    <button class="btn btn-teal" onclick="goToday()">📅 Today</button>
+    <button class="btn btn-blue" onclick="applyFilter()">🔍 Apply</button>
+    <button class="btn btn-gray" onclick="resetAll()">↺ Reset</button>
+  </div>
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <span><span class="leg-dot ld-occ"></span>Occupied</span>
+    <span><span class="leg-dot ld-par"></span>Check-out Day</span>
+    <span><span class="leg-dot ld-fre"></span>Available</span>
+  </div>
+
+  <!-- CALENDAR -->
+  <div class="calendar-grid" id="calendar">
+    <div class="no-data">
+      <span class="icon">📋</span>
+      <p>Upload a booking file to view room availability</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+
+// ── CONFIG ─────────────────────────────────────────────────────
+// Default room codes — used unless the person edits the room codes
+// field themselves.
+const DEFAULT_ROOM_CODES = ["SU1", "SU2", "FR21", "FR22", "FR23", "FR24"];
+let ROOMS = [...DEFAULT_ROOM_CODES];
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const WDAYS  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+// ── LOCAL-DATE HELPER ──────────────────────────────────────────
+// Never use Date.toISOString() for calendar-day math — it converts to
+// UTC and silently shifts the date backward for timezones ahead of UTC
+// (e.g. IST, UTC+5:30). Always build the string from local getters.
+function toLocalISO(dt) {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function todayStr() { return toLocalISO(new Date()); }
+
+// ── STATE ──────────────────────────────────────────────────────
+let aMap = {};   // { "yyyy-mm-dd" : [ {room, name, rank, appNo, type}, ... ] }
+
+// ── DATE PARSE ─────────────────────────────────────────────────
+// Handles: Excel serial numbers, "dd-mm-yyyy" / "dd/mm/yyyy", the same
+// with a 24-hour time ("dd/mm/yyyy HH:mm[:ss]"), the same with a
+// 12-hour AM/PM time ("dd/mm/yyyy hh:mm AM/PM" — this is the format
+// this booking system's export actually uses), "yyyy-mm-dd", and a
+// generic fallback. Time portion (if any) is ignored for map keys —
+// occupancy is tracked per calendar day. IMPORTANT: dates are always
+// parsed as day/month/year here explicitly; they are never handed to
+// the bare `new Date(string)` constructor for this format, because
+// that constructor assumes US month/day order and would silently swap
+// day and month (e.g. "02/07/2026" -> Feb 7 instead of 2 Jul).
+function parseDate(raw) {
+  if (raw === null || raw === undefined || raw === "") return null;
+
+  if (typeof raw === "number") {
+    const d = XLSX.SSF.parse_date_code(raw);
+    if (!d) return null;
+    return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`;
+  }
+
+  const s = String(raw).trim();
+
+  // dd-mm-yyyy or dd/mm/yyyy, optionally followed by a time component
+  // which may itself be 24-hour ("22:00") or 12-hour with an AM/PM
+  // marker ("10:00 PM", "10:00PM", "10:00 P.M."). The AM/PM suffix is
+  // irrelevant to the *date* value, but it must still be matched by
+  // this regex or the whole string fails to match (due to the trailing
+  // $ anchor) and falls through to the unsafe generic Date() parser.
+  let m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})(?:[ T]\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AaPp]\.?[Mm]\.?)?)?$/);
+  if (m) return `${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
+
+  // yyyy-mm-dd, optionally with a 24-hour or 12-hour AM/PM time
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T]\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AaPp]\.?[Mm]\.?)?)?$/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+
+  const dt = new Date(s);
+  return isNaN(dt) ? null : toLocalISO(dt);
+}
+
+function addDays(d, n) {
+  const dt = new Date(d + "T00:00:00");
+  dt.setDate(dt.getDate() + n);
+  return toLocalISO(dt);
+}
+
+function dateRange(from, to) {
+  const r = []; let c = from;
+  while (c <= to) { r.push(c); c = addDays(c, 1); }
+  return r;
+}
+
+function prettyDate(d) {
+  const dt = new Date(d + "T00:00:00");
+  return `${dt.getDate()} ${MONTHS[dt.getMonth()]} ${dt.getFullYear()}`;
+}
+
+function dayName(d) {
+  return WDAYS[new Date(d + "T00:00:00").getDay()];
+}
+
+// Pulls a "HH:MM AM/PM" time out of a raw Check-In/Check-Out value like
+// "02/07/2026 10:00 PM" (already 12-hour with AM/PM), "06-07-2026 21:00"
+// (24-hour, no marker), or an Excel serial number. Returns "" if no
+// time component is present (date-only value).
+function extractTime(raw) {
+  if (raw === null || raw === undefined || raw === "") return "";
+
+  if (typeof raw === "number") {
+    const d = XLSX.SSF.parse_date_code(raw);
+    if (!d || (d.H === undefined && d.M === undefined)) return "";
+    if (d.H === 0 && d.M === 0 && (d.S === undefined || d.S === 0)) return "";
+    const hh = d.H || 0, mm = d.M || 0;
+    const ampm = hh >= 12 ? "PM" : "AM";
+    let h12 = hh % 12; if (h12 === 0) h12 = 12;
+    return `${h12}:${String(mm).padStart(2,"0")} ${ampm}`;
+  }
+
+  const s = String(raw).trim();
+  // Capture the time itself, plus an optional trailing AM/PM marker
+  // (with or without periods/space: "PM", "P.M.", " PM"). Without this
+  // third group, strings like "10:00 PM" failed to match at all (the
+  // old regex anchored on \d{2}\s*$ and " PM" broke that anchor), so
+  // extractTime silently returned "" for every row using this format.
+  const m = s.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp]\.?[Mm]\.?)?\s*$/);
+  if (!m) return "";
+  const hh = parseInt(m[1], 10);
+  const mm = m[2];
+
+  if (m[3]) {
+    // Source already gives a 12-hour clock with its own AM/PM marker —
+    // just normalize the marker's case/punctuation, don't re-derive it
+    // from hh (hh here is already 1-12, not a 24-hour value).
+    const ampm = /p/i.test(m[3]) ? "PM" : "AM";
+    let h12 = hh % 12; if (h12 === 0) h12 = 12;
+    return `${h12}:${mm} ${ampm}`;
+  }
+
+  // No AM/PM marker in source -> treat hh as 24-hour and convert.
+  const ampm = hh >= 12 ? "PM" : "AM";
+  let h12 = hh % 12; if (h12 === 0) h12 = 12;
+  return `${h12}:${mm} ${ampm}`;
+}
+
+// ── ROOM CODE EXTRACTION ───────────────────────────────────────
+// The "Actual Room Allotment" export column can arrive as:
+//   1. Plain text:            "FR22"
+//   2. "count~code" shorthand: "4~FR22"
+//   3. A JSON blob with possibly MULTIPLE rooms:
+//      {"data": {"338133_1": "4~FR22", "338133_2": "6~FR24"}, "header": {...}}
+// A single booking can span more than one room (two guests, two rooms
+// in the same request), so this returns an ARRAY of every real room
+// code found — not just the first one, which was the earlier bug.
+function extractRoomCodes(raw) {
+  if (raw === null || raw === undefined) return [];
+  let s = String(raw).trim();
+  if (!s) return [];
+
+  if (s.startsWith("{")) {
+    try {
+      const obj = JSON.parse(s);
+      if (obj && obj.data) {
+        const vals = Object.values(obj.data).filter(v => v !== "" && v !== null && v !== undefined);
+        const codes = vals
+          .map(v => String(v).split("~").pop().trim().toUpperCase().replace(/\s+/g, ""))
+          .filter(Boolean);
+        // De-duplicate while preserving order (same room listed twice
+        // in the source data shouldn't create two identical entries).
+        const seen = new Set();
+        return codes.filter(c => (seen.has(c) ? false : (seen.add(c), true)));
+      }
+      // Parsed OK but not the expected shape — no usable room code in it.
+      return [];
+    } catch (e) {
+      // Looks like JSON (starts with "{") but isn't valid JSON. This is
+      // export garbage, not a room code — do NOT fall through and treat
+      // the raw text as a room, or it pollutes the detected room list.
+      return [];
+    }
+  }
+
+  // Plain text: may itself list more than one code, comma-separated
+  // ("FR22, FR24"), or a single "count~code" shorthand, or a bare code.
+  return s.split(",")
+    .map(part => {
+      let p = part.trim();
+      if (p.includes("~")) p = p.split("~").pop();
+      return p.trim().toUpperCase().replace(/\s+/g, "");
+    })
+    .filter(Boolean);
+}
+
+// ── BUILD MAP ──────────────────────────────────────────────────
+function buildMap(rows) {
+  const map = {};
+  const detectedRooms = new Set();
+  let skippedNoRoom = 0, skippedBadDates = 0;
+
+  rows.forEach(row => {
+    const rooms = extractRoomCodes(row["Actual Room Allotment"]);
+    if (rooms.length === 0) { skippedNoRoom++; return; }
+
+    const ciStr = parseDate(row["Check-In"]);
+    const coStr = parseDate(row["Check-Out"] !== undefined ? row["Check-Out"] : row["Checkout"]);
+    if (!ciStr || !coStr || coStr < ciStr) { skippedBadDates++; return; }
+
+    const name   = String(row["Name"]            || "").trim();
+    const rank   = String(row["Rank Category"]    || row["Service"] || "").trim();
+    const appNo  = String(row["Service No"]       || row["ID Card No:"] || "").trim();
+    const status = String(row["Service Status"]   || "").trim();
+    const ciTime = extractTime(row["Check-In"]);
+    const coTime = extractTime(row["Check-Out"] !== undefined ? row["Check-Out"] : row["Checkout"]);
+
+    const dates = dateRange(ciStr, coStr);
+
+    // A booking can list several rooms at once — create an occupancy
+    // entry for EACH room, not just the first, so every room the guest
+    // was actually allotted shows as occupied.
+    rooms.forEach(room => {
+      detectedRooms.add(room);
+
+      dates.forEach((date, idx) => {
+        if (!map[date]) map[date] = [];
+
+        // Last day = check-out day (partial), unless it's a same-day stay
+        const type = (idx === dates.length - 1 && dates.length > 1) ? "partial" : "full";
+
+        // Dedup by room + guest id + guest name + exact stay dates. Name
+        // is included so that two DIFFERENT guests sharing a room on the
+        // same dates (both with a blank Service No, which is common) are
+        // kept as two separate entries instead of the second one
+        // silently vanishing. A genuine duplicate export row (same
+        // guest, same everything) still collapses to a single entry.
+        const exists = map[date].find(e =>
+          e.room === room && e.appNo === appNo && e.name === name &&
+          e.ciStr === ciStr && e.coStr === coStr
+        );
+        if (!exists) {
+          map[date].push({ room, name, rank, appNo, status, type, ciStr, coStr, ciTime, coTime });
+        }
+      });
+    });
+  });
+
+  return { map, detectedRooms, skippedNoRoom, skippedBadDates, totalRows: rows.length };
+}
+
+// ── SUMMARY ────────────────────────────────────────────────────
+function updateSummary() {
+  const today   = todayStr();
+  const entries = aMap[today] || [];
+  const occSet  = new Set(entries.filter(e => e.type === "full").map(e => e.room));
+  const parSet  = new Set(entries.filter(e => e.type === "partial").map(e => e.room));
+  const freeN   = ROOMS.filter(r => !occSet.has(r) && !parSet.has(r)).length;
+
+  document.getElementById("sTotal").textContent    = ROOMS.length;
+  document.getElementById("sOccupied").textContent = occSet.size;
+  document.getElementById("sFree").textContent     = freeN;
+  document.getElementById("sPartial").textContent  = parSet.size;
+  document.getElementById("summaryRow").style.display = "";
+}
+
+// ── RENDER ─────────────────────────────────────────────────────
+function renderCalendar(dates) {
+  const cal = document.getElementById("calendar");
+  cal.innerHTML = "";
+
+  // No file uploaded yet (or rooms cleared) — show the friendly prompt
+  // instead of an empty-looking calendar.
+  if (ROOMS.length === 0) {
+    cal.innerHTML = `<div class="no-data"><span class="icon">📋</span><p>Upload a booking file to view room availability</p></div>`;
+    return;
+  }
+
+  const sorted = [...new Set(dates)].sort();
+  const today  = todayStr();
+
+  if (sorted.length === 0) {
+    cal.innerHTML = `<div class="no-data"><span class="icon">🔍</span><p>No bookings found for selected date range.</p></div>`;
+    return;
+  }
+
+  sorted.forEach(date => {
+    const entries  = aMap[date] || [];
+
+    const card = document.createElement("div");
+    card.className = "day-card" + (date === today ? " is-today" : "");
+
+    let html = `
+      <div class="card-head">
+        <div>
+          <div class="date-big">${prettyDate(date)}${date === today ? " 🟢" : ""}</div>
+          <div class="date-small">${dayName(date)}</div>
+        </div>
+      </div>
+      <div class="card-body">
+    `;
+
+    ROOMS.forEach(room => {
+      const roomEntries = entries.filter(e => e.room === room);
+
+      if (roomEntries.length === 0) {
+        html += `
+          <div class="room-row r-fre">
+            <span class="room-tag">${room}</span>
+            <div class="room-info">
+              <div class="gname">✓ Available</div>
+            </div>
+          </div>`;
+      } else {
+        roomEntries.forEach(rec => {
+          const cls   = rec.type === "full" ? "r-occ" : "r-par";
+          const icon  = rec.type === "full" ? "🔴" : "🟡";
+          const label = rec.type === "partial" ? "Check-out day" : "Occupied";
+          const guestLine = [rec.rank, rec.name].filter(Boolean).join(" ") || "—";
+          const timeNote  = rec.type === "partial"
+            ? (rec.coTime ? " · Check-out at " + rec.coTime : "")
+            : (rec.coTime ? " · Checking out " + prettyDate(rec.coStr) + (rec.coTime ? " " + rec.coTime : "") : "");
+          html += `
+            <div class="room-row ${cls}">
+              <span class="room-tag">${room}</span>
+              <div class="room-info">
+                <div class="gname">${icon} ${guestLine}</div>
+                <div class="gmeta">${label}${timeNote}</div>
+              </div>
+            </div>`;
+        });
+      }
+    });
+
+    html += `</div>`;
+    card.innerHTML = html;
+    cal.appendChild(card);
+  });
+}
+
+// ── FILE HANDLING (CSV or XLSX/XLS) ────────────────────────────
+// Recognized spreadsheet extensions. Anything not CSV is treated as an
+// Excel workbook and handed to the XLSX reader (covers .xlsx, .xls, and
+// .xlsm exports, which all share the same binary/zip reading path).
+const CSV_EXTENSIONS = ["csv"];
+const EXCEL_EXTENSIONS = ["xlsx", "xls", "xlsm"];
+
+function processFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const ext = file.name.split(".").pop().toLowerCase();
+  const isCSV   = CSV_EXTENSIONS.includes(ext);
+  const isExcel = EXCEL_EXTENSIONS.includes(ext);
+
+  if (!isCSV && !isExcel) {
+    alert(`Unrecognized file type ".${ext}". Please upload an Excel file (.xlsx, .xls) or a CSV file (.csv).`);
+    input.value = "";
+    return;
+  }
+
+  const now = new Date();
+  const dt  =
+    now.toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) +
+    " at " +
+    now.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
+
+  const formatLabel = isCSV ? "CSV" : "Excel";
+  document.getElementById("uploadInfo").innerHTML =
+    `<strong>📄 ${file.name}</strong>Format detected: ${formatLabel} · Last uploaded: ${dt}`;
+
+  if (isCSV) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const parsed = Papa.parse(e.target.result, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: h => h.trim().replace(/^\uFEFF/, "")
+      });
+      handleRows(parsed.data);
+    };
+    reader.onerror = () => alert("Could not read the CSV file. Please try again.");
+    reader.readAsText(file, "UTF-8");
+  } else {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb   = XLSX.read(new Uint8Array(e.target.result), { type:"array", cellDates:false });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+
+      // Some exports (like this one) have a blank first row before the
+      // real header row. Scan the first several rows for the one that
+      // actually contains our expected column names, instead of blindly
+      // assuming row 1 is the header — otherwise "Actual Room Allotment"
+      // (and every other column) silently fails to match.
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" });
+      const REQUIRED_HEADERS = ["Actual Room Allotment", "Name", "Check-In"];
+      let headerRowIdx = aoa.findIndex(row =>
+        REQUIRED_HEADERS.some(h => row.some(cell => String(cell).trim() === h))
+      );
+      if (headerRowIdx === -1) headerRowIdx = 0; // fallback: assume row 1
+
+      const headers = aoa[headerRowIdx].map(h => String(h).trim());
+      const rows = aoa.slice(headerRowIdx + 1)
+        .filter(r => r.some(cell => String(cell).trim() !== ""))
+        .map(rowArr => {
+          const obj = {};
+          headers.forEach((h, i) => {
+            obj[h] = rowArr[i] !== undefined ? rowArr[i] : "";
+          });
+          return obj;
+        });
+
+      handleRows(rows);
+    };
+    reader.onerror = () => alert("Could not read the Excel file. Please make sure it's a valid .xlsx/.xls file.");
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function handleRows(rows) {
+  const result = buildMap(rows);
+  aMap = result.map;
+
+  // Room list uses the default codes unless the person has already
+  // typed a custom list into the field.
+  const input = document.getElementById("roomCodesInput");
+  const detected = [...result.detectedRooms].sort();
+  if (!input.value.trim()) {
+    input.value = DEFAULT_ROOM_CODES.join(", ");
+  }
+  ROOMS = input.value.split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+  if (ROOMS.length === 0) ROOMS = [...DEFAULT_ROOM_CODES];
+
+  document.getElementById("roomConfig").style.display = "";
+  document.getElementById("roomDetectNote").textContent =
+    `Detected ${detected.length} room code(s) with bookings: ${detected.join(", ") || "(none)"}. ` +
+    `Edit the list above to match your actual rooms, then click Update Rooms.`;
+
+  const warn = document.getElementById("parseWarning");
+  if (result.skippedNoRoom > 0 || result.skippedBadDates > 0) {
+    warn.style.display = "block";
+    warn.innerHTML = `<strong>Note:</strong> Of ${result.totalRows} rows read, ` +
+      `${result.skippedNoRoom} had no "Actual Room Allotment" (guest not yet assigned a room — expected for pending requests) ` +
+      `and ${result.skippedBadDates} had unreadable/invalid Check-In or Check-Out dates.`;
+  } else {
+    warn.style.display = "none";
+  }
+
+  updateSummary();
+  goToday();
+}
+
+function applyRoomCodes() {
+  const input = document.getElementById("roomCodesInput");
+  ROOMS = input.value.split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+  updateSummary();
+  applyFilter();
+}
+
+// ── FILTER LOGIC ───────────────────────────────────────────────
+function onTypeChange() {
+  const t  = document.getElementById("filterType").value;
+  const s  = document.getElementById("startDate");
+  const e  = document.getElementById("endDate");
+  s.disabled = (t === "today" || t === "all");
+  e.disabled = (t !== "between");
+  if (s.disabled) s.value = "";
+  if (e.disabled) e.value = "";
+}
+
+function goToday() {
+  document.getElementById("filterType").value = "today";
+  onTypeChange();
+  renderCalendar([todayStr()]);
+}
+
+function applyFilter() {
+  const t = document.getElementById("filterType").value;
+  const s = document.getElementById("startDate").value;
+  const e = document.getElementById("endDate").value;
+
+  if (t === "today") { renderCalendar([todayStr()]); return; }
+  if (t === "all")   { renderCalendar(Object.keys(aMap)); return; }
+  if (!s)            { alert("Please select a start date."); return; }
+
+  if (t === "single") {
+    renderCalendar([s]);
+  } else if (t === "between") {
+    if (!e) { alert("Please select an end date."); return; }
+    if (e < s) { alert("End date must be on or after start date."); return; }
+    renderCalendar(dateRange(s, e));
+  }
+}
+
+function resetAll() {
+  document.getElementById("filterType").value = "all";
+  onTypeChange();
+  renderCalendar(Object.keys(aMap));
+}
+
+</script>
+</body>
+</html>
